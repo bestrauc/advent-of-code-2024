@@ -29,3 +29,7 @@ def input_dim(inp: list[str]) -> tuple[int, int]:
 
 def transpose(l: list[list]) -> list[list]:
     return list(map(list, zip(*l)))
+
+
+def print_grid(grid: list[list[str]]):
+    print("\n".join("".join(row) for row in grid))
