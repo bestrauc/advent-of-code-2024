@@ -1,5 +1,3 @@
-import numpy as np
-
 import utils
 
 MOVE_MAP = {
@@ -11,36 +9,23 @@ MOVE_MAP = {
 
 
 def main():
-    puzzle_input = utils.read_example_input(
-        """#######
-#...#.#
-#.....#
-#..OO@#
-#..O..#
-#.....#
-#######
-
-<vv<<^^<<^^"""
-    )
-    # puzzle_input = utils.read_puzzle_input("inputs/day15_large_example.txt")
+    puzzle_input = utils.read_puzzle_input("inputs/day15_large_example.txt")
     # puzzle_input = utils.read_puzzle_input("inputs/day15.txt")
     grid, moves = utils.split_list_at(puzzle_input, pat="")
     grid = [list(line) for line in grid]
     moves = [c for line in moves for c in line]
-
-    utils.print_grid(grid)
 
     wide_grid = expand_map(grid)
     utils.print_grid(wide_grid)
 
     for move in moves:
         print(f"Move {move}:")
-        move_robot(grid, move)
-        utils.print_grid(grid)
+        move_robot(wide_grid, move)
+        utils.print_grid(wide_grid)
         print()
 
-    utils.print_grid(grid)
-    print(box_coordinate_sum(grid))
+    utils.print_grid(wide_grid)
+    print(box_coordinate_sum(wide_grid))
 
 
 def move_robot(grid: list[list[str]], direction: str):
@@ -54,29 +39,74 @@ def move_robot(grid: list[list[str]], direction: str):
     if grid[ni][nj] == "#":
         return
 
-    def move_boxes(bi: int, bj: int):
-        """Recursively move a stack of boxes into the direction we're processing."""
-        # There is no box here -> return.
-        if grid[bi][bj] != "O":
-            return
+    def move_boxes(bi: int, bj: int, check_only: bool) -> bool:
+        """Move the stack of boxes at this position out of the way.
 
-        b_ni = bi + di
-        b_nj = bj + dj
+        Can also check first if a move is possible, because when we choose
+        to move, we do it "depth-first" and start moving boxes around already.
+        So we have to make sure first that all moves are possible at the end.
 
-        # Can't move the box into a wall.
-        if grid[b_ni][b_nj] == "#":
-            return
+        This function is recursive and moves the boxes when unwinding. Probably
+        a bit too complicated and verbose with the cases, but it works! :D
+        """
+        if grid[bi][bj] not in "[]":
+            return True
 
-        # Try to move other boxes out of the way first.
-        move_boxes(b_ni, b_nj)
+        # This is the coordinate of the other half of the box
+        b2i, b2j = (bi, bj + 1) if grid[bi][bj] == "[" else (bi, bj - 1)
 
-        # Move the box, if it's possible.
-        if grid[b_ni][b_nj] == ".":
-            grid[b_ni][b_nj] = "O"
-            grid[bi][bj] = "."
+        # We'd move the box to these locations.
+        b_ni, b_nj = (bi + di), (bj + dj)
+        b2_ni, b2_nj = (b2i + di), (b2j + dj)
 
-    # Move boxes, if there are any and we can move them.
-    move_boxes(ni, nj)
+        # Horizontal moves are easy, no overlapping box complications.
+        if di == 0:
+            if grid[b_ni][b_nj] == "#":
+                return False
+            elif grid[b_ni][b_nj] == ".":
+                if not check_only:
+                    grid[b_ni][b_nj] = grid[bi][bj]
+                    grid[bi][bj] = "."
+
+                return True
+            elif grid[b_ni][b_nj] in "[]":
+                move_possible = move_boxes(b_ni, b_nj, check_only)
+                if move_possible and not check_only:
+                    grid[b_ni][b_nj] = grid[bi][bj]
+                    grid[bi][bj] = "."
+
+                return move_possible
+        # Vertical moves have to account for overlapping boxes.
+        else:
+            # One of the two halves can't be moved.
+            if (grid[b_ni][b_nj] == "#") or (grid[b2_ni][b2_nj] == "#"):
+                return False
+            # Both halves can be moved.
+            elif (grid[b_ni][b_nj] == ".") and (grid[b2_ni][b2_nj] == "."):
+                if not check_only:
+                    grid[b_ni][b_nj] = grid[bi][bj]
+                    grid[bi][bj] = "."
+
+                    grid[b2_ni][b2_nj] = grid[b2i][b2j]
+                    grid[b2i][b2j] = "."
+
+                return True
+            # At least one of the two halves would push another box.
+            elif (grid[b_ni][b_nj] in "[]") or (grid[b2_ni][b2_nj] in "[]"):
+                move_possible1 = move_boxes(b_ni, b_nj, check_only)
+                move_possible2 = move_boxes(b2_ni, b2_nj, check_only)
+
+                if move_possible1 and move_possible2 and not check_only:
+                    grid[b_ni][b_nj] = grid[bi][bj]
+                    grid[bi][bj] = "."
+
+                    grid[b2_ni][b2_nj] = grid[b2i][b2j]
+                    grid[b2i][b2j] = "."
+
+                return move_possible1 and move_possible2
+
+    if move_boxes(ni, nj, check_only=True):
+        move_boxes(ni, nj, check_only=False)
 
     # Move the robot if possible
     if grid[ni][nj] == ".":
@@ -86,7 +116,7 @@ def move_robot(grid: list[list[str]], direction: str):
 
 def box_coordinate_sum(grid: list[list[str]]) -> int:
     h, w = utils.input_dim(grid)
-    box_positions = [(i, j) for i in range(h) for j in range(w) if grid[i][j] == "O"]
+    box_positions = [(i, j) for i in range(h) for j in range(w) if grid[i][j] in "[O"]
     return sum(100 * i + j for (i, j) in box_positions)
 
 
