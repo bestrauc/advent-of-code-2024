@@ -34,6 +34,9 @@ def main():
     # Reconstruct the end path!
     end_position = [(i, j) for i in range(h) for j in range(w) if grid[i][j] == "E"][0]
     possible_end_arrivals = [(k, d) for k, d in distances.items() if k[:2] == end_position]
+
+    # Note: For part two, assuming that we'll have exactly one min could be a problem here!
+    #       However, I got lucky with my input and only realized this complication later. :D
     min_end_position, end_distance = min(possible_end_arrivals, key=lambda kd: kd[1])
 
     # Traverse our paths and visualize them in the grid.
