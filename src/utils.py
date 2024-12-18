@@ -2,6 +2,8 @@ import re
 import itertools
 import heapq
 
+ADJ4 = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
 
 def split_list_at(l: list, pat: str) -> list[list]:
     try:
