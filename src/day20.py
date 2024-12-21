@@ -1,6 +1,8 @@
-import utils
 from collections import defaultdict
-import copy
+
+from tqdm import tqdm
+
+import utils
 
 
 def main():
@@ -21,57 +23,44 @@ def main():
 #...#...#...###
 ###############"""
     )
-    # puzzle_input = utils.read_puzzle_input("inputs/day20.txt")
+    puzzle_input = utils.read_puzzle_input("inputs/day20.txt")
     grid = [list(line) for line in puzzle_input]
     h, w = utils.input_dim(grid)
 
     start_position = [(i, j) for i in range(h) for j in range(w) if grid[i][j] == "S"][0]
     end_position = [(i, j) for i in range(h) for j in range(w) if grid[i][j] == "E"][0]
+    path_positions = [(i, j) for i in range(h) for j in range(w) if grid[i][j] != "#"]
 
-    # Get shortest distance without using cheats.
-    distances, previous = shortest_path(start=(*start_position, 1), end=end_position, grid=grid, blacklist=set())
-    base_distance = distances[(*end_position, 1)]
+    distances_from_start, _ = shortest_path(start=start_position, grid=grid, cheat_dist=None)
+    distances_from_end, _ = shortest_path(start=end_position, grid=grid, cheat_dist=None)
+    baseline_distance = distances_from_start[end_position]
 
-    print(base_distance)
+    assert all([p in distances_from_start for p in path_positions])
+    sorted_path = sorted(path_positions, key=lambda n: distances_from_start[n])
 
-    # Successively blacklist the cheats encountered and see what's the next best path.
-    blacklisted_cheats = set()
-    cheated_distances = []
-    while True:
-        # Find a path while allowing cheating.
-        distances, previous = shortest_path(
-            start=(*start_position, 0), end=end_position, grid=grid, blacklist=blacklisted_cheats
-        )
-        cheat_dist = distances[(*end_position, 1)]
+    print(baseline_distance)
 
-        # If this happens, then we couldn't cheat or cheating doesn't help anymore.
-        if cheat_dist >= base_distance:
-            break
+    # Walk the normal path and from each position, try to cheat within our given
+    # cheat time and see if that connects us forward onto the normal path.
+    shortcut_count = defaultdict(int)
+    for i, path_pos in tqdm(enumerate(sorted_path), total=len(sorted_path)):
+        start_to_pos = distances_from_start[path_pos]
+        distances_from_path, _ = shortest_path(start=path_pos, grid=grid, cheat_dist=20)
+        for shortcut_target in sorted_path[i:]:
+            if shortcut_target in distances_from_path:
+                shortcut_distance = distances_from_path[shortcut_target]
+                shortcut_to_end = distances_from_end[shortcut_target]
+                total_dist = start_to_pos + shortcut_distance + shortcut_to_end
 
-        cheated_distances.append(cheat_dist)
+                savings = baseline_distance - total_dist
 
-        # Where on the path did we cheat?
-        cheat_coordinate = None
-        node = previous[(*end_position, 1)]
-        while previous[node] is not None:
-            if grid[node[0]][node[1]] == "#":
-                cheat_coordinate = (node[0], node[1])
-                break
+                if savings >= 100:
+                    shortcut_count[savings] += 1
 
-            node = previous[node]
-
-        # Because of the distance check above and because we have a singular non-cheat
-        # path, this actually shouldn't be possible, so lets assert it to be safe.
-        assert cheat_coordinate is not None, "We didn't cheat? Why?"
-        blacklisted_cheats.add(cheat_coordinate)
-        # print(len(cheated_distances), cheat_dist, base_distance)
-
-    print(f"{len(cheated_distances)} many ways to cheat for benefit.")
+    print(sum(shortcut_count.values()))
 
 
-def shortest_path(
-    start: tuple[int, int, int], end: tuple[int, int], grid: list[list[str]], blacklist: set[tuple[int, int]]
-) -> tuple[dict, dict]:
+def shortest_path(start: tuple[int, int, int, int], grid: list[list[str]], cheat_dist: int | None) -> tuple[dict, dict]:
     h, w = utils.input_dim(grid)
 
     q = utils.PriorityQueue()
@@ -83,25 +72,21 @@ def shortest_path(
 
     q.add_task(start)
 
-    state_stack = []
-
     while len(q.pq) > 0:
         node = q.pop_task()
-        (i, j, cheat_count) = node
+        (i, j) = node
 
-        if grid[i][j] == end:
-            return distances, previous
+        # If we are in cheat mode, we only explore as many steps as we are allowed.
+        if (cheat_dist is not None) and distances[node] == cheat_dist:
+            continue
 
         adj_neighbors = [(i + di, j + dj) for (di, dj) in utils.ADJ4 if (i + di) in range(h) and (j + dj) in range(w)]
-        neighbors = [(ni, nj, cheat_count) for (ni, nj) in adj_neighbors if grid[ni][nj] != "#"]
-
-        # If we still have a cheat available, we can run into a wall.
-        if cheat_count < 1:
-            neighbors += [
-                (ni, nj, cheat_count + 1)
-                for (ni, nj) in adj_neighbors
-                if grid[ni][nj] == "#" and (ni, nj) not in blacklist
-            ]
+        neighbors = [
+            (ni, nj)
+            for (ni, nj) in adj_neighbors
+            # If we are cheating we don't care about boundaries.
+            if (cheat_dist is not None and cheat_dist > 0) or (grid[ni][nj] != "#")
+        ]
 
         for neighbor in neighbors:
             if distances[neighbor] > distances[node] + 1:
