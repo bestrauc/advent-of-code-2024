@@ -2,7 +2,7 @@ import re
 import itertools
 import heapq
 
-ADJ4 = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+ADJ4 = [(-1, 0), (0, -1), (1, 0), (0, 1)]
 
 MOVE_TO_DX = {
     "^": (-1, 0),
