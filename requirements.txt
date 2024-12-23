@@ -2,3 +2,4 @@ numpy
 scipy
 termcolor
 tqdm
+networkx
